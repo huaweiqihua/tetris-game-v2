@@ -18,7 +18,6 @@
             height: 100vh;
         }
         
-        /* 顶部信息栏 */
         #top-bar {
             display: flex;
             gap: 30px;
@@ -38,7 +37,6 @@
             border-radius: 20px; cursor: pointer;
         }
         
-        /* 游戏区域 */
         #game-container {
             flex: 1;
             display: flex;
@@ -51,7 +49,6 @@
             background: #0a0a15; 
         }
         
-        /* 方向键 - 大尺寸 */
         #controls {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -76,7 +73,6 @@
         }
         .ctrl-btn:active { background: #0ff; color: #1a1a2e; }
         
-        /* 旋转按钮特殊样式 */
         .rotate-btn {
             background: linear-gradient(180deg, #3d1a5f, #2a0d47);
             border-color: #d0f !important;
@@ -98,7 +94,6 @@
     </style>
 </head>
 <body>
-    <!-- 顶部信息 -->
     <div id="top-bar">
         <div class="stat"><div class="stat-label">分数</div><div class="stat-value" id="score">0</div></div>
         <div class="stat"><div class="stat-label">等级</div><div class="stat-value" id="level">1</div></div>
@@ -106,18 +101,16 @@
         <button id="start-btn" ontouchstart="startGame()">开始</button>
     </div>
     
-    <!-- 游戏画布 -->
     <div id="game-container">
         <canvas id="game" width="280" height="480"></canvas>
     </div>
     
-    <!-- 控制按钮 -->
     <div id="controls">
         <div></div>
         <button class="ctrl-btn rotate-btn" ontouchstart="rotateP()">↻ 旋转</button>
         <div></div>
         <button class="ctrl-btn" ontouchstart="move(-1)">← 左</button>
-        <button class="ctrl-btn" ontouchstart="drop()">↓ 下</button>
+        <button class="ctrl-btn" ontouchstart="startFastDrop()" ontouchend="stopFastDrop()">↓ 下</button>
         <button class="ctrl-btn" ontouchstart="move(1)">→ 右</button>
     </div>
 
@@ -133,30 +126,115 @@ const ctx = canvas.getContext('2d');
 
 const COLS = 7;
 const ROWS = 16;
-const BLOCK = 30;
+const BLOCK = 35;  // 稍微调大
 
 const SHAPES = [[[1,1,1,1]],[[1,1],[1,1]],[[1,1,1],[0,1,0]],[[1,1,1],[1,0,0]],[[1,1,1],[0,0,1]],[[1,1,0],[0,1,1]],[[0,1,1],[1,1,0]]];
 const COLORS = ['#0ff','#ff0','#f0f','#0f0','#f00','#00f','#fa0'];
 
 let board = [], piece = null, score = 0, level = 1, lines = 0, gameOver = false, running = false, dropInterval = 800, lastDrop = 0;
+let fastDropTimer = null;
 
 function initBoard() { board = []; for(let r=0;r<ROWS;r++){board[r]=[];for(let c=0;c<COLS;c++)board[r][c]=null;} }
 function init(){initBoard();score=0;level=1;lines=0;dropInterval=800;gameOver=false;updateScore();draw();}
 function newPiece(){const idx=Math.floor(Math.random()*SHAPES.length);const shape=[];for(let i=0;i<SHAPES[idx].length;i++)shape[i]=SHAPES[idx][i].slice();const color=COLORS[idx];const startX=Math.floor((COLS-shape[0].length)/2);return{shape,color,x:startX,y:0};}
 function drawCell(c,r,color){if(color){ctx.fillStyle=color;ctx.fillRect(c*BLOCK+1,r*BLOCK+1,BLOCK-2,BLOCK-2);ctx.fillStyle='rgba(255,255,255,0.3)';ctx.fillRect(c*BLOCK+1,r*BLOCK+1,BLOCK-2,4);ctx.fillRect(c*BLOCK+1,r*BLOCK+1,4,BLOCK-2);}}
 function draw(){ctx.fillStyle='#0a0a15';ctx.fillRect(0,0,canvas.width,canvas.height);for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++)if(board[r][c])drawCell(c,r,board[r][c]);if(piece){for(let y=0;y<piece.shape.length;y++)for(let x=0;x<piece.shape[y].length;x++)if(piece.shape[y][x])drawCell(piece.x+x,piece.y+y,piece.color);}}
-function canMove(ox,oy){for(let y=0;y<piece.shape.length;y++)for(let x=0;x<piece.shape[y].length;x++){if(piece.shape[y][x]){const nx=piece.x+x+ox,ny=piece.y+y+oy;if(nx<0||nx>=COLS||ny>=ROWS)return false;if(ny>=0&&board[ny][nx]!==null)return false;}}return true;}
-function rotate(){const old=piece.shape,newS=[];for(let x=0;x<old[0].length;x++){newS[x]=[];for(let y=old.length-1;y>=0;y--)newS[x].push(old[y][x]);}piece.shape=newS;if(!canMove(0,0)){if(canMove(-1,0))piece.x-=1;else if(canMove(1,0))piece.x+=1;else piece.shape=old;}}
-function lock(){for(let y=0;y<piece.shape.length;y++)for(let x=0;x<piece.shape[y].length;x++){if(piece.shape[y][x]){const py=piece.y+y,px=piece.x+x;if(py>=0&&py<ROWS&&px>=0&&px<COLS)board[py][px]=piece.color;}}for(let r=ROWS-1;r>=0;r--){let full=true;for(let c=0;c<COLS;c++)if(board[r][c]===null){full=false;break;}if(full){for(let rr=r;rr>0;rr--)for(let c=0;c<COLS;c++)board[rr][c]=board[rr-1][c];for(let c=0;c<COLS;c++)board[0][c]=null;lines++;score+=100*level;r++;}}if(lines>=level*5){level++;dropInterval=Math.max(100,800-(level-1)*70);}updateScore();piece=newPiece();if(!canMove(0,0)){gameOver=true;document.getElementById('final-score').textContent='得分: '+score;document.getElementById('game-over').classList.add('show');}}
+
+// 修复：检查能否移动到指定位置
+function canMove(p, ox, oy) {
+    for(let y = 0; y < p.shape.length; y++) {
+        for(let x = 0; x < p.shape[y].length; x++) {
+            if(p.shape[y][x]) {
+                const nx = p.x + x + ox;
+                const ny = p.y + y + oy;
+                // 修复：允许移动到最右边（nx < COLS 而不是 <=）
+                if(nx < 0 || nx >= COLS || ny >= ROWS) return false;
+                if(ny >= 0 && board[ny][nx] !== null) return false;
+            }
+        }
+    }
+    return true;
+}
+
+function rotate(){const old=piece.shape,newS=[];for(let x=0;x<old[0].length;x++){newS[x]=[];for(let y=old.length-1;y>=0;y--)newS[x].push(old[y][x]);}piece.shape=newS;if(!canMove(piece,0,0)){if(canMove(piece,-1,0))piece.x-=1;else if(canMove(piece,1,0))piece.x+=1;else piece.shape=old;}}
+function lock(){for(let y=0;y<piece.shape.length;y++)for(let x=0;x<piece.shape[y].length;x++){if(piece.shape[y][x]){const py=piece.y+y,px=piece.x+x;if(py>=0&&py<ROWS&&px>=0&&px<COLS)board[py][px]=piece.color;}}for(let r=ROWS-1;r>=0;r--){let full=true;for(let c=0;c<COLS;c++)if(board[r][c]===null){full=false;break;}if(full){for(let rr=r;rr>0;rr--)for(let c=0;c<COLS;c++)board[rr][c]=board[rr-1][c];for(let c=0;c<COLS;c++)board[0][c]=null;lines++;score+=100*level;r++;}}if(lines>=level*5){level++;dropInterval=Math.max(100,800-(level-1)*70);}updateScore();piece=newPiece();if(!canMove(piece,0,0)){gameOver=true;document.getElementById('final-score').textContent='得分: '+score;document.getElementById('game-over').classList.add('show');}}
 function updateScore(){document.getElementById('score').textContent=score;document.getElementById('level').textContent=level;document.getElementById('lines').textContent=lines;}
-function move(dir){if(!running||gameOver||!piece)return;if(canMove(dir,0)){piece.x+=dir;draw();}}
-function tick(){if(!running||gameOver)return;if(canMove(0,1))piece.y++;else lock();draw();}
-function drop(){if(!running||gameOver||!piece)return;if(canMove(0,1)){piece.y++;draw();}else{lock();draw();}}
-function hardDrop(){if(!running||gameOver||!piece)return;while(canMove(0,1))piece.y++;lock();draw();}
+
+// 移动 - 修复边界检查
+function move(dir){
+    if(!running||gameOver||!piece)return;
+    if(canMove(piece, dir, 0)){
+        piece.x += dir;
+        draw();
+    }
+}
+
+// 正常下落（一步）
+function drop(){
+    if(!running||gameOver||!piece)return;
+    if(canMove(piece, 0, 1)){
+        piece.y++;
+        draw();
+    }else{
+        lock();
+        draw();
+    }
+}
+
+// 快速下落 - 按住时持续快速掉落
+function startFastDrop(){
+    if(!running||gameOver||!piece)return;
+    // 先下一格
+    if(canMove(piece, 0, 1)){
+        piece.y++;
+        draw();
+    }else{
+        lock();
+        draw();
+        return;
+    }
+    // 持续快速下落
+    fastDropTimer = setInterval(()=>{
+        if(!running || gameOver || !piece) {
+            stopFastDrop();
+            return;
+        }
+        if(canMove(piece, 0, 1)){
+            piece.y++;
+            draw();
+        }else{
+            lock();
+            draw();
+            stopFastDrop();
+        }
+    }, 50); // 每50ms下一格
+}
+
+function stopFastDrop(){
+    if(fastDropTimer){
+        clearInterval(fastDropTimer);
+        fastDropTimer = null;
+    }
+}
+
+function hardDrop(){if(!running||gameOver||!piece)return;while(canMove(piece,0,1))piece.y++;lock();draw();}
 function rotateP(){if(!running||gameOver||!piece)return;rotate();draw();}
 function gameLoop(timestamp){if(!running||gameOver)return;if(timestamp-lastDrop>dropInterval){tick();lastDrop=timestamp;}requestAnimationFrame(gameLoop);}
+function tick(){if(!running||gameOver)return;if(canMove(piece,0,1))piece.y++;else lock();draw();}
 function startGame(){init();piece=newPiece();running=true;lastDrop=performance.now();document.getElementById('game-over').classList.remove('show');document.getElementById('start-btn').textContent='重玩';draw();requestAnimationFrame(gameLoop);}
-document.addEventListener('keydown',e=>{if(!running||gameOver)return;if(e.key==='ArrowLeft')move(-1);if(e.key==='ArrowRight')move(1);if(e.key==='ArrowDown')drop();if(e.key==='ArrowUp'||e.key===' '){e.preventDefault();rotateP();}});
+
+// 键盘控制
+document.addEventListener('keydown',e=>{
+    if(!running||gameOver)return;
+    if(e.key==='ArrowLeft')move(-1);
+    if(e.key==='ArrowRight')move(1);
+    if(e.key==='ArrowDown'){e.preventDefault();startFastDrop();}
+    if(e.key==='ArrowUp'||e.key===' '){e.preventDefault();rotateP();}
+});
+document.addEventListener('keyup',e=>{
+    if(e.key==='ArrowDown')stopFastDrop();
+});
+
 init();
     </script>
 </body>
