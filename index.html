@@ -5,81 +5,90 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>俄罗斯方块</title>
     <style>
-        * { box-sizing: border-box; touch-action: manipulation; }
+        * { box-sizing: border-box; touch-action: manipulation; margin: 0; padding: 0; }
+        html, body { height: 100%; overflow: hidden; }
         body {
             background: #1a1a2e;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            margin: 0;
             font-family: 'Segoe UI', sans-serif;
             color: #eee;
-            overflow: hidden;
             padding: 10px;
+            height: 100vh;
         }
-        h1 { margin: 5px 0; font-size: 20px; text-shadow: 0 0 10px #0ff; }
-        #game-container {
+        h1 { font-size: 18px; margin: 5px 0; text-shadow: 0 0 10px #0ff; }
+        
+        #game-wrapper {
+            display: flex;
+            gap: 15px;
+            align-items: flex-start;
+        }
+        
+        #left-panel {
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 10px;
         }
+        
         canvas {
             border: 2px solid #0ff;
             box-shadow: 0 0 15px rgba(0,255,255,0.3);
             background: #0a0a15;
-            max-width: 100vw;
-            height: auto;
         }
-        #info {
-            display: flex;
-            gap: 20px;
-            font-size: 14px;
-        }
-        .stat { text-align: center; }
-        .stat-label { font-size: 11px; color: #888; }
-        .stat-value { font-size: 20px; font-weight: bold; color: #0ff; }
         
-        #controls {
-            display: grid;
-            grid-template-columns: repeat(3, 60px); justify-content: center;
-            gap: 8px;
-            margin-top: 10px;
-            width: 100%;
-            max-width: 300px;
+        #right-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            align-items: center;
+            min-width: 80px;
         }
-        .ctrl-btn {
-            background: linear-gradient(135deg, #16213e, #0f3460);
-            border: 1px solid #0ff;
-            color: #0ff;
-            padding: 25px 15px;
-            font-size: 28px;
-            border-radius: 10px;
-            cursor: pointer;
-            user-select: none;
-            -webkit-tap-highlight-color: transparent;
-        }
-        .ctrl-btn:active { background: #0ff; color: #1a1a2e; }
-        .ctrl-btn:disabled { opacity: 0.3; pointer-events: none; }
+        
+        .stat { text-align: center; }
+        .stat-label { font-size: 10px; color: #888; }
+        .stat-value { font-size: 18px; font-weight: bold; color: #0ff; }
         
         #start-btn {
             background: linear-gradient(135deg, #0ff, #06f);
             border: none;
-            padding: 12px 40px;
+            padding: 10px 20px;
             color: white;
-            font-size: 16px;
-            border-radius: 25px;
+            font-size: 14px;
+            border-radius: 20px;
             cursor: pointer;
-            margin-top: 10px;
+            margin-top: 5px;
         }
-        #start-btn:active { transform: scale(0.95); }
+        
+        #controls {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 5px;
+            width: 100%;
+            max-width: 280px;
+            margin-top: 8px;
+        }
+        
+        .ctrl-btn {
+            background: linear-gradient(180deg, #1e3a5f, #0d2137);
+            border: 1px solid #0ff;
+            color: #0ff;
+            padding: 12px 8px;
+            font-size: 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            text-align: center;
+        }
+        .ctrl-btn:active { background: #0ff; color: #1a1a2e; }
+        
+        .ctrl-btn.wide { grid-column: span 2; }
         
         #game-over {
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.85);
+            background: rgba(0,0,0,0.9);
             display: none;
             flex-direction: column;
             align-items: center;
@@ -87,15 +96,21 @@
             z-index: 100;
         }
         #game-over.show { display: flex; }
-        #game-over h2 { color: #f00; font-size: 32px; margin-bottom: 20px; }
-        #final-score { font-size: 28px; color: #0ff; margin-bottom: 20px; }
+        #game-over h2 { color: #f00; font-size: 28px; margin-bottom: 15px; }
+        #final-score { font-size: 20px; color: #0ff; margin-bottom: 15px; }
+        
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
     <h1>🧱 俄罗斯方块</h1>
-    <div id="game-container">
-        <canvas id="game" width="210" height="378"></canvas>
-        <div id="info">
+    
+    <div id="game-wrapper">
+        <div id="left-panel">
+            <canvas id="game" width="189" height="342"></canvas>
+        </div>
+        
+        <div id="right-panel">
             <div class="stat">
                 <div class="stat-label">分数</div>
                 <div class="stat-value" id="score">0</div>
@@ -108,24 +123,24 @@
                 <div class="stat-label">行数</div>
                 <div class="stat-value" id="lines">0</div>
             </div>
+            <button id="start-btn" ontouchstart="startGame()">开始</button>
         </div>
-        <button id="start-btn" ontouchstart="startGame()">开始游戏</button>
     </div>
     
     <div id="controls">
         <div></div>
-        <button class="ctrl-btn" ontouchstart="handleBtn('up')">↻</button>
+        <button class="ctrl-btn" ontouchstart="rotateP()">↻</button>
         <div></div>
-        <button class="ctrl-btn" ontouchstart="handleBtn('left')">←</button>
-        <button class="ctrl-btn" ontouchstart="handleBtn('down')">↓</button>
-        <button class="ctrl-btn" ontouchstart="handleBtn('right')">→</button>
-        <button class="ctrl-btn" ontouchstart="handleBtn('drop')" style="grid-column: span 3;">⬇ 快速下落</button>
+        <button class="ctrl-btn" ontouchstart="move(-1)">←</button>
+        <button class="ctrl-btn" ontouchstart="drop()">↓</button>
+        <button class="ctrl-btn" ontouchstart="move(1)">→</button>
+        <button class="ctrl-btn wide" ontouchstart="hardDrop()">⬇ 快速</button>
     </div>
 
     <div id="game-over">
         <h2>游戏结束</h2>
         <div id="final-score">0</div>
-        <button class="ctrl-btn" ontouchstart="startGame()">再来一局</button>
+        <button class="ctrl-btn wide" ontouchstart="startGame()">再来一局</button>
     </div>
 
     <script>
@@ -144,7 +159,7 @@
         ];
         const COLORS = ['#0ff','#ff0','#f0f','#0f0','#f00','#00f','#fa0'];
         
-        let board = [], piece = null, nextPiece = null;
+        let board = [], piece = null;
         let score = 0, level = 1, lines = 0;
         let gameOver = false, running = false;
         let dropInterval = 800, lastDrop = 0;
@@ -167,8 +182,8 @@
             ctx.fillStyle = color;
             ctx.fillRect(x*BLOCK+1, y*BLOCK+1, BLOCK-2, BLOCK-2);
             ctx.fillStyle = 'rgba(255,255,255,0.3)';
-            ctx.fillRect(x*BLOCK+1, y*BLOCK+1, BLOCK-2, 4);
-            ctx.fillRect(x*BLOCK+1, y*BLOCK+1, 4, BLOCK-2);
+            ctx.fillRect(x*BLOCK+1, y*BLOCK+1, BLOCK-2, 3);
+            ctx.fillRect(x*BLOCK+1, y*BLOCK+1, 3, BLOCK-2);
         }
         
         function drawBoard() {
@@ -204,8 +219,7 @@
                 row.forEach((v, x) => v && (board[piece.y+y][piece.x+x] = piece.color))
             );
             clearLines();
-            piece = nextPiece || randomPiece();
-            nextPiece = randomPiece();
+            piece = randomPiece();
             if(collide(piece, piece.shape, 0, 0)) { endGame(); }
         }
         
@@ -269,11 +283,10 @@
         function startGame() {
             init();
             piece = randomPiece();
-            nextPiece = randomPiece();
             running = true;
             lastDrop = performance.now();
             document.getElementById('game-over').classList.remove('show');
-            document.getElementById('start-btn').textContent = '重新开始';
+            document.getElementById('start-btn').textContent = '重玩';
             draw();
             requestAnimationFrame(update);
         }
@@ -285,15 +298,6 @@
             document.getElementById('game-over').classList.add('show');
         }
         
-        function handleBtn(action) {
-            if(action==='left') move(-1);
-            if(action==='right') move(1);
-            if(action==='down') drop();
-            if(action==='up') rotateP();
-            if(action==='drop') hardDrop();
-        }
-        
-        // 键盘控制
         document.addEventListener('keydown', e => {
             if(!running) return;
             if(e.key==='ArrowLeft') move(-1);
@@ -302,7 +306,6 @@
             if(e.key==='ArrowUp' || e.key===' ') { e.preventDefault(); rotateP(); }
         });
         
-        // 初始化
         init();
     </script>
 </body>
